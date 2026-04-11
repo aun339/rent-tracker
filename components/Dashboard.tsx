@@ -7,6 +7,7 @@ import {
 import BuildingSection from './BuildingSection';
 import Modal from './Modal';
 import Btn from './Btn';
+import AIAssistant from './AIAssistant';
 
 export default function Dashboard({ user, onSignOut }) {
   const [buildings, setBuildings] = useState([]);
@@ -50,7 +51,6 @@ export default function Dashboard({ user, onSignOut }) {
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--paper)' }}>
-      {/* Top Nav */}
       <nav style={{
         position: 'sticky', top: 0, zIndex: 100, background: 'var(--paper-card)',
         borderBottom: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)'
@@ -59,7 +59,6 @@ export default function Dashboard({ user, onSignOut }) {
           maxWidth: 1100, margin: '0 auto', padding: '0 20px',
           height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12
         }}>
-          {/* Logo */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{
               width: 32, height: 32, background: 'var(--ink)', borderRadius: 8,
@@ -70,16 +69,10 @@ export default function Dashboard({ user, onSignOut }) {
             </span>
           </div>
 
-          {/* Right side */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Btn variant="accent" size="sm" onClick={() => setShowModal(true)} icon="+" style={{ display: 'flex' }}>
-              <span style={{ display: 'none', ...(typeof window !== 'undefined' && window.innerWidth > 480 ? { display: 'inline' } : {}) }}>
-                Add Building
-              </span>
+            <Btn variant="accent" size="sm" onClick={() => setShowModal(true)} icon="+">
               Building
             </Btn>
-
-            {/* User menu */}
             <div style={{ position: 'relative' }}>
               <button
                 onClick={() => setMenuOpen(o => !o)}
@@ -127,17 +120,11 @@ export default function Dashboard({ user, onSignOut }) {
         </div>
       </nav>
 
-      {/* Click outside to close menu */}
       {menuOpen && (
-        <div
-          style={{ position: 'fixed', inset: 0, zIndex: 99 }}
-          onClick={() => setMenuOpen(false)}
-        />
+        <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setMenuOpen(false)} />
       )}
 
-      {/* Main Content */}
-      <main style={{ maxWidth: 1100, margin: '0 auto', padding: '28px 20px 60px' }}>
-        {/* Page Header */}
+      <main style={{ maxWidth: 1100, margin: '0 auto', padding: '28px 20px 100px' }}>
         <div style={{ marginBottom: 28 }}>
           <h1 style={{ fontFamily: 'Syne, sans-serif', fontSize: 'clamp(1.5rem, 4vw, 2rem)', fontWeight: 800, color: 'var(--ink)', marginBottom: 4 }}>
             Dashboard
@@ -147,7 +134,6 @@ export default function Dashboard({ user, onSignOut }) {
           </p>
         </div>
 
-        {/* Buildings */}
         {buildings.length === 0 ? (
           <div style={{
             textAlign: 'center', padding: '64px 24px',
@@ -179,7 +165,6 @@ export default function Dashboard({ user, onSignOut }) {
         )}
       </main>
 
-      {/* Add Building Modal */}
       {showModal && (
         <Modal title="Add Building" onClose={() => setShowModal(false)}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -203,6 +188,9 @@ export default function Dashboard({ user, onSignOut }) {
           </div>
         </Modal>
       )}
+
+      {/* 🤖 AI Assistant */}
+      <AIAssistant userId={uid} buildings={buildings} />
 
       <style>{`
         @keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
