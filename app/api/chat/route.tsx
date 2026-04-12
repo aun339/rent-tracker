@@ -5,10 +5,12 @@ export async function POST(req: Request) {
 
   const groqMessages = [
     { role: 'system', content: system },
-    ...messages.filter((m: any) => m.content && m.content.trim()).map((m: any) => ({
-      role: m.role === 'assistant' ? 'assistant' : 'user',
-      content: m.content,
-    })),
+    ...messages
+      .filter((m: any) => m.content && m.content.trim())
+      .map((m: any) => ({
+        role: m.role === 'assistant' ? 'assistant' : 'user',
+        content: m.content,
+      })),
   ];
 
   const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -28,13 +30,9 @@ export async function POST(req: Request) {
   const data = await response.json();
 
   if (data.error) {
-    console.error('Groq error:', data.error);
     return NextResponse.json({ content: [{ type: 'text', text: 'Error: ' + data.error.message }] });
   }
 
   const text = data.choices?.[0]?.message?.content || '';
-
-  return NextResponse.json({
-    content: [{ type: 'text', text }],
-  });
+  return NextResponse.json({ content: [{ type: 'text', text }] });
 }
