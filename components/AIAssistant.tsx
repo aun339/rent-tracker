@@ -41,7 +41,6 @@ export default function AIAssistant({ userId, buildings }) {
     recognition.interimResults = false;
     recognition.lang = 'ur-PK';
     recognitionRef.current = recognition;
-
     recognition.onstart = () => setListening(true);
     recognition.onend = () => setListening(false);
     recognition.onerror = () => setListening(false);
@@ -97,68 +96,88 @@ YOUR JOB:
 Understand what the user wants and respond with a JSON action + a friendly message.
 
 POSSIBLE ACTIONS:
-1. add_building  → { action:"add_building", buildingName:"..." }
-2. add_house     → { action:"add_house", buildingId:"...", houseNumber:"...", tenantName:"...", phoneNumber:"...", monthlyRent:15000 }
-3. log_payment   → { action:"log_payment", buildingId:"...", houseId:"...", amount:5000, date:"YYYY-MM-DD" }
-4. info          → { action:"info" }
+1. add_building  → { "action":"add_building", "buildingName":"..." }
+2. add_house     → { "action":"add_house", "buildingId":"...", "houseNumber":"...", "tenantName":"...", "phoneNumber":"...", "monthlyRent":15000 }
+3. log_payment   → { "action":"log_payment", "buildingId":"...", "houseId":"...", "amount":5000, "date":"YYYY-MM-DD" }
+4. info          → { "action":"info" }
 
-RULES:
-- Always return valid JSON on the FIRST line, then a newline, then your friendly reply.
-- If something is missing (like buildingId), ask the user for it.
-- For log_payment, match house by houseNumber and building by name.
-- If monthlyRent is not mentioned for add_house, set it to 0 and ask.
+CRITICAL RULES:
+- ALWAYS return valid JSON on the VERY FIRST LINE, then a blank line, then your friendly reply text.
+- The JSON must be on line 1 with NO text before it.
+- If something is missing ask the user for it.
+- For log_payment, match house by houseNumber and building by name from CURRENT DATA.
 - Phone number is optional, use "" if not given.
 - Date defaults to today if not mentioned.
-- Never make up IDs — use only IDs from CURRENT DATA above.
+- ONLY use IDs from CURRENT DATA above, never make up IDs.
 
-Example output:
+Example of correct output format:
 {"action":"add_building","buildingName":"Green Valley"}
-Building "Green Valley" add ho gayi! 🎉`;
+Building "Green Valley" add ho gayi! 🎉
+
+Another example:
+{"action":"info"}
+Aapke paas 2 buildings hain.`;
 
     try {
-      // ✅ calls our own Next.js API route — not Anthropic directly
+      // Build message history for Gemini (must alternate user/model)
+      const historyMessages = messages
+        .slice(1) // skip initial greeting
+        .map(m => ({
+          role: m.role === 'user' ? 'user' : 'assistant',
+          content: m.text,
+        }));
+
+      // Add current user message
+      historyMessages.push({ role: 'user', content: text });
+
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
           system: systemPrompt,
-          messages: [
-            ...messages.filter((m, i) => i > 0).map(m => ({
-              role: m.role === 'user' ? 'user' : 'assistant',
-              content: m.text,
-            })),
-            { role: 'user', content: text },
-          ],
+          messages: historyMessages,
         }),
       });
 
       const data = await response.json();
       const raw = data.content?.map(c => c.text || '').join('') || '';
 
+      console.log('AI raw response:', raw); // for debugging
+
+      // Parse first line as JSON action
       const lines = raw.trim().split('\n');
       let actionObj = null;
       let replyText = raw;
 
-      try {
-        actionObj = JSON.parse(lines[0]);
-        replyText = lines.slice(1).join('\n').trim();
-      } catch (_) {}
-
-      if (actionObj) {
-        try {
-          await executeAction(actionObj);
-        } catch (err) {
-          replyText = '⚠️ Action mein error aaya: ' + err.message;
+      // Find the first line that looks like JSON
+      for (let i = 0; i < Math.min(3, lines.length); i++) {
+        const line = lines[i].trim();
+        if (line.startsWith('{') && line.endsWith('}')) {
+          try {
+            actionObj = JSON.parse(line);
+            replyText = lines.slice(i + 1).join('\n').trim();
+            break;
+          } catch (_) {}
         }
       }
 
-      setMessages(prev => [...prev, { role: 'assistant', text: replyText || '✅ Done!' }]);
+      // Execute the action
+      if (actionObj && actionObj.action !== 'info') {
+        try {
+          await executeAction(actionObj);
+          if (!replyText) replyText = '✅ Done!';
+        } catch (err) {
+          replyText = '⚠️ Error: ' + err.message;
+        }
+      }
+
+      if (!replyText) replyText = raw;
+
+      setMessages(prev => [...prev, { role: 'assistant', text: replyText }]);
       speak(replyText);
     } catch (err) {
-      const errMsg = '⚠️ Connection error. Please try again.';
-      setMessages(prev => [...prev, { role: 'assistant', text: errMsg }]);
+      console.error('AI error:', err);
+      setMessages(prev => [...prev, { role: 'assistant', text: '⚠️ Connection error. Please try again.' }]);
     } finally {
       setLoading(false);
     }
@@ -175,7 +194,7 @@ Building "Green Valley" add ho gayi! 🎉`;
         break;
       }
       case 'add_house': {
-        if (!obj.buildingId) throw new Error('Building not found');
+        if (!obj.buildingId) throw new Error('Building not found — please mention the building name');
         await addDoc(collection(db, `users/${userId}/buildings/${obj.buildingId}/houses`), {
           houseNumber: obj.houseNumber || 'Unknown',
           tenantName: obj.tenantName || 'Unknown',
@@ -186,13 +205,16 @@ Building "Green Valley" add ho gayi! 🎉`;
         break;
       }
       case 'log_payment': {
-        if (!obj.buildingId || !obj.houseId) throw new Error('House not found');
+        if (!obj.buildingId || !obj.houseId) throw new Error('House not found — please mention building and house number');
         const dateStr = obj.date || new Date().toISOString().split('T')[0];
-        await addDoc(collection(db, `users/${userId}/buildings/${obj.buildingId}/houses/${obj.houseId}/payments`), {
-          amount: Number(obj.amount) || 0,
-          date: Timestamp.fromDate(new Date(dateStr + 'T00:00:00')),
-          createdAt: Timestamp.now(),
-        });
+        await addDoc(
+          collection(db, `users/${userId}/buildings/${obj.buildingId}/houses/${obj.houseId}/payments`),
+          {
+            amount: Number(obj.amount) || 0,
+            date: Timestamp.fromDate(new Date(dateStr + 'T00:00:00')),
+            createdAt: Timestamp.now(),
+          }
+        );
         break;
       }
       default:
