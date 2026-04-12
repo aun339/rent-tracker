@@ -3,7 +3,6 @@ import { useState, useRef, useEffect } from 'react';
 import { db } from '@/firebase';
 import { collection, addDoc, getDocs, query, orderBy, Timestamp } from 'firebase/firestore';
 
-// ── tiny helpers ──────────────────────────────────────────────────────────────
 function speak(text) {
   if (typeof window === 'undefined' || !window.speechSynthesis) return;
   window.speechSynthesis.cancel();
@@ -13,7 +12,6 @@ function speak(text) {
   window.speechSynthesis.speak(u);
 }
 
-// ── main component ────────────────────────────────────────────────────────────
 export default function AIAssistant({ userId, buildings }) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([
@@ -32,7 +30,6 @@ export default function AIAssistant({ userId, buildings }) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, open]);
 
-  // ── voice input ─────────────────────────────────────────────────────────────
   const startListening = () => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) {
@@ -42,7 +39,6 @@ export default function AIAssistant({ userId, buildings }) {
     const recognition = new SR();
     recognition.continuous = false;
     recognition.interimResults = false;
-    // accept urdu, hindi, english
     recognition.lang = 'ur-PK';
     recognitionRef.current = recognition;
 
@@ -62,7 +58,6 @@ export default function AIAssistant({ userId, buildings }) {
     setListening(false);
   };
 
-  // ── send to Claude ──────────────────────────────────────────────────────────
   const sendMessage = async (overrideText) => {
     const text = (overrideText ?? input).trim();
     if (!text || loading) return;
@@ -72,10 +67,8 @@ export default function AIAssistant({ userId, buildings }) {
     setMessages(prev => [...prev, userMsg]);
     setLoading(true);
 
-    // build context snapshot for Claude
     const buildingsSummary = buildings.map(b => `• Building: "${b.name}" (id: ${b.id})`).join('\n') || 'No buildings yet.';
 
-    // fetch houses for each building so Claude can reference them
     let housesSummary = '';
     for (const b of buildings) {
       try {
@@ -107,7 +100,7 @@ POSSIBLE ACTIONS:
 1. add_building  → { action:"add_building", buildingName:"..." }
 2. add_house     → { action:"add_house", buildingId:"...", houseNumber:"...", tenantName:"...", phoneNumber:"...", monthlyRent:15000 }
 3. log_payment   → { action:"log_payment", buildingId:"...", houseId:"...", amount:5000, date:"YYYY-MM-DD" }
-4. info          → { action:"info" }  (just answering a question, no DB change)
+4. info          → { action:"info" }
 
 RULES:
 - Always return valid JSON on the FIRST line, then a newline, then your friendly reply.
@@ -123,7 +116,8 @@ Example output:
 Building "Green Valley" add ho gayi! 🎉`;
 
     try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      // ✅ calls our own Next.js API route — not Anthropic directly
+      const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -131,7 +125,7 @@ Building "Green Valley" add ho gayi! 🎉`;
           max_tokens: 1000,
           system: systemPrompt,
           messages: [
-            ...messages.filter(m => m.role !== 'assistant' || messages.indexOf(m) > 0).map(m => ({
+            ...messages.filter((m, i) => i > 0).map(m => ({
               role: m.role === 'user' ? 'user' : 'assistant',
               content: m.text,
             })),
@@ -143,7 +137,6 @@ Building "Green Valley" add ho gayi! 🎉`;
       const data = await response.json();
       const raw = data.content?.map(c => c.text || '').join('') || '';
 
-      // parse first line as JSON, rest as reply
       const lines = raw.trim().split('\n');
       let actionObj = null;
       let replyText = raw;
@@ -151,11 +144,8 @@ Building "Green Valley" add ho gayi! 🎉`;
       try {
         actionObj = JSON.parse(lines[0]);
         replyText = lines.slice(1).join('\n').trim();
-      } catch (_) {
-        // no JSON, pure text reply
-      }
+      } catch (_) {}
 
-      // execute action
       if (actionObj) {
         try {
           await executeAction(actionObj);
@@ -174,7 +164,6 @@ Building "Green Valley" add ho gayi! 🎉`;
     }
   };
 
-  // ── execute firebase action ─────────────────────────────────────────────────
   const executeAction = async (obj) => {
     switch (obj.action) {
       case 'add_building': {
@@ -211,10 +200,8 @@ Building "Green Valley" add ho gayi! 🎉`;
     }
   };
 
-  // ── render ──────────────────────────────────────────────────────────────────
   return (
     <>
-      {/* Floating button */}
       <button
         onClick={() => setOpen(o => !o)}
         title="AI Assistant"
@@ -232,7 +219,6 @@ Building "Green Valley" add ho gayi! 🎉`;
         {open ? '✕' : '🤖'}
       </button>
 
-      {/* Chat panel */}
       {open && (
         <div style={{
           position: 'fixed', bottom: 92, right: 24, zIndex: 499,
@@ -243,7 +229,6 @@ Building "Green Valley" add ho gayi! 🎉`;
           display: 'flex', flexDirection: 'column', overflow: 'hidden',
           animation: 'slideUp 0.2s ease',
         }}>
-          {/* Header */}
           <div style={{
             padding: '14px 16px', background: 'var(--ink)',
             display: 'flex', alignItems: 'center', gap: 10,
@@ -264,12 +249,9 @@ Building "Green Valley" add ho gayi! 🎉`;
             <div style={{ marginLeft: 'auto', width: 8, height: 8, borderRadius: '50%', background: '#4ade80' }} />
           </div>
 
-          {/* Messages */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
             {messages.map((m, i) => (
-              <div key={i} style={{
-                display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start',
-              }}>
+              <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
                 <div style={{
                   maxWidth: '82%', padding: '10px 13px', borderRadius: 12,
                   borderBottomRightRadius: m.role === 'user' ? 4 : 12,
@@ -300,7 +282,6 @@ Building "Green Valley" add ho gayi! 🎉`;
             <div ref={bottomRef} />
           </div>
 
-          {/* Input */}
           <div style={{
             padding: '12px', borderTop: '1px solid var(--border)',
             display: 'flex', gap: 8, alignItems: 'flex-end',
@@ -320,7 +301,6 @@ Building "Green Valley" add ho gayi! 🎉`;
               onFocus={e => e.target.style.borderColor = 'var(--accent)'}
               onBlur={e => e.target.style.borderColor = 'var(--border)'}
             />
-            {/* Mic button */}
             <button
               onClick={listening ? stopListening : startListening}
               title={listening ? 'Stop' : 'Speak'}
@@ -337,7 +317,6 @@ Building "Green Valley" add ho gayi! 🎉`;
             >
               {listening ? '⏹' : '🎤'}
             </button>
-            {/* Send button */}
             <button
               onClick={() => sendMessage()}
               disabled={!input.trim() || loading}
