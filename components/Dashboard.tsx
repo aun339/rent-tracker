@@ -7,7 +7,7 @@ import BuildingSection from './BuildingSection';
 import Modal from './Modal';
 import Btn from './Btn';
 import AIAssistant from './AIAssistant';
-import { ThemeToggle } from './LoginScreen';
+import SettingsModal, { AppSettings, loadSettings, saveSettings, defaultSettings } from './SettingsModal';
 
 interface Building { id: string; name: string; }
 interface Analytics { totalExpected: number; totalCollected: number; totalPending: number; totalExpenses: number; occupancy: number; totalHouses: number; }
@@ -35,25 +35,21 @@ export default function Dashboard({ user, onSignOut }: { user: User; onSignOut: 
   const [selectedBuilding, setSelectedBuilding] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [buildingName, setBuildingName] = useState('');
   const [saving, setSaving] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [dark, setDark] = useState(false);
   const [view, setView] = useState<'rent' | 'expenses'>('rent');
   const [analytics, setAnalytics] = useState<Analytics>({ totalExpected: 0, totalCollected: 0, totalPending: 0, totalExpenses: 0, occupancy: 0, totalHouses: 0 });
   const [expenseForm, setExpenseForm] = useState({ type: '', amount: '', date: new Date().toISOString().split('T')[0] });
+  const [settings, setSettings] = useState<AppSettings>(defaultSettings);
   const uid = user.uid;
 
+  // Load settings on mount
   useEffect(() => {
-    const saved = localStorage.getItem('theme');
-    if (saved === 'dark') { setDark(true); document.documentElement.setAttribute('data-theme', 'dark'); }
+    const s = loadSettings();
+    setSettings(s);
+    document.documentElement.setAttribute('data-theme', s.darkMode ? 'dark' : 'light');
   }, []);
-
-  const toggleTheme = () => {
-    const next = !dark; setDark(next);
-    document.documentElement.setAttribute('data-theme', next ? 'dark' : 'light');
-    localStorage.setItem('theme', next ? 'dark' : 'light');
-  };
 
   useEffect(() => {
     const q = query(collection(db, `users/${uid}/buildings`), orderBy('createdAt', 'asc'));
@@ -116,62 +112,73 @@ export default function Dashboard({ user, onSignOut }: { user: User; onSignOut: 
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--paper)', transition: 'background 0.3s' }}>
+      {/* Nav */}
       <nav style={{ position: 'sticky', top: 0, zIndex: 100, background: 'var(--nav-bg)', borderBottom: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', transition: 'background 0.3s' }}>
         <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0 20px', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ width: 36, height: 36, background: 'var(--ink)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem' }}>🏢</div>
             <span style={{ fontFamily: 'Syne,sans-serif', fontWeight: 800, fontSize: '1.15rem', color: 'var(--ink)' }}>RentTrack</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <ThemeToggle dark={dark} onToggle={toggleTheme} compact />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <Btn variant="accent" size="sm" onClick={() => setShowModal(true)} icon="+">Building</Btn>
-            <div style={{ position: 'relative' }}>
-              <button onClick={() => setMenuOpen(o => !o)} style={{ width: 38, height: 38, borderRadius: '50%', background: 'var(--accent-soft)', border: 'none', cursor: 'pointer', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {user.photoURL ? <img src={user.photoURL} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontFamily: 'Syne,sans-serif', fontWeight: 700, color: 'var(--accent)', fontSize: '1rem' }}>{(user.displayName || user.email || 'U')[0].toUpperCase()}</span>}
-              </button>
-              {menuOpen && (
-                <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 8px)', background: 'var(--paper-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-md)', padding: '12px', minWidth: 200, zIndex: 200 }}>
-                  <p style={{ fontSize: '0.82rem', color: 'var(--ink-soft)', marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>{user.displayName || user.email}</p>
-                  <button onClick={() => { setMenuOpen(false); onSignOut(); }} style={{ width: '100%', padding: '8px 10px', borderRadius: 8, background: 'var(--red-soft)', color: 'var(--red)', border: 'none', fontFamily: 'Syne,sans-serif', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer', textAlign: 'left' }}>Sign Out</button>
-                </div>
-              )}
-            </div>
+            {/* Profile button → opens Settings */}
+            <button
+              onClick={() => setShowSettings(true)}
+              title="Settings"
+              style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--accent-soft)', border: '2px solid var(--border)', cursor: 'pointer', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'border-color 0.15s', flexShrink: 0 }}
+              onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--accent)'}
+              onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border)'}
+            >
+              {user.photoURL
+                ? <img src={user.photoURL} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : <span style={{ fontFamily: 'Syne,sans-serif', fontWeight: 700, color: 'var(--accent)', fontSize: '1rem' }}>{(user.displayName || user.email || 'U')[0].toUpperCase()}</span>
+              }
+            </button>
           </div>
         </div>
       </nav>
-      {menuOpen && <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setMenuOpen(false)} />}
 
       <main style={{ maxWidth: 1100, margin: '0 auto', padding: '24px 20px 100px' }}>
+        {/* Building selector + view toggle */}
         {buildings.length > 0 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24, flexWrap: 'wrap' }}>
             <div style={{ position: 'relative', flexShrink: 0 }}>
-              <select value={selectedBuilding || ''} onChange={e => setSelectedBuilding(e.target.value)} style={{ fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: '1.1rem', padding: '10px 40px 10px 16px', borderRadius: 12, background: 'var(--paper-card)', border: '1.5px solid var(--border)', color: 'var(--ink)', cursor: 'pointer', appearance: 'none', boxShadow: 'var(--shadow-sm)', minWidth: 180 }}>
+              <select value={selectedBuilding || ''} onChange={e => setSelectedBuilding(e.target.value)} style={{ fontFamily: 'Syne,sans-serif', fontWeight: 700, fontSize: '1.05rem', padding: '10px 40px 10px 16px', borderRadius: 12, background: 'var(--paper-card)', border: '1.5px solid var(--border)', color: 'var(--ink)', cursor: 'pointer', appearance: 'none', boxShadow: 'var(--shadow-sm)', minWidth: 180 }}>
                 {buildings.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
               <span style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--ink-muted)' }}>▾</span>
             </div>
-            <div style={{ display: 'flex', background: 'var(--paper-warm)', borderRadius: 10, padding: 3, border: '1.5px solid var(--border)' }}>
-              {(['rent', 'expenses'] as const).map(v => (
-                <button key={v} onClick={() => setView(v)} style={{ padding: '7px 16px', borderRadius: 8, fontSize: '0.82rem', fontFamily: 'Syne,sans-serif', fontWeight: 600, background: view === v ? 'var(--paper-card)' : 'transparent', color: view === v ? 'var(--ink)' : 'var(--ink-muted)', boxShadow: view === v ? 'var(--shadow-sm)' : 'none', border: 'none', cursor: 'pointer', transition: 'all 0.15s' }}>
-                  {v === 'rent' ? '💰 Rent' : '🔧 Expenses'}
-                </button>
-              ))}
-            </div>
-            {view === 'expenses' && <Btn variant="accent" size="sm" onClick={() => setShowExpenseModal(true)} icon="+">Add Expense</Btn>}
+
+            {settings.showExpenses && (
+              <div style={{ display: 'flex', background: 'var(--paper-warm)', borderRadius: 10, padding: 3, border: '1.5px solid var(--border)' }}>
+                {(['rent', 'expenses'] as const).map(v => (
+                  <button key={v} onClick={() => setView(v)} style={{ padding: '7px 16px', borderRadius: 8, fontSize: '0.82rem', fontFamily: 'Syne,sans-serif', fontWeight: 600, background: view === v ? 'var(--paper-card)' : 'transparent', color: view === v ? 'var(--ink)' : 'var(--ink-muted)', boxShadow: view === v ? 'var(--shadow-sm)' : 'none', border: 'none', cursor: 'pointer', transition: 'all 0.15s' }}>
+                    {v === 'rent' ? '💰 Rent' : '🔧 Expenses'}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {settings.showExpenses && view === 'expenses' && (
+              <Btn variant="accent" size="sm" onClick={() => setShowExpenseModal(true)} icon="+">Add Expense</Btn>
+            )}
+
             <p style={{ color: 'var(--ink-muted)', fontSize: '0.85rem', marginLeft: 'auto' }}>{monthLabel}</p>
           </div>
         )}
 
-        {buildings.length > 0 && (
+        {/* Analytics */}
+        {settings.showAnalytics && buildings.length > 0 && (
           <div style={{ display: 'flex', gap: 12, marginBottom: 28, flexWrap: 'wrap' }}>
             <MetricCard icon="🏠" label="Expected" value={`PKR ${analytics.totalExpected.toLocaleString()}`} sub={`${analytics.totalHouses} houses`} />
             <MetricCard icon="✅" label="Collected" value={`PKR ${analytics.totalCollected.toLocaleString()}`} color="var(--green)" />
             <MetricCard icon="⏳" label="Pending" value={`PKR ${analytics.totalPending.toLocaleString()}`} color={analytics.totalPending > 0 ? 'var(--amber)' : 'var(--green)'} />
-            <MetricCard icon="🔧" label="Expenses" value={`PKR ${analytics.totalExpenses.toLocaleString()}`} color="var(--red)" />
+            {settings.showExpenses && <MetricCard icon="🔧" label="Expenses" value={`PKR ${analytics.totalExpenses.toLocaleString()}`} color="var(--red)" />}
             <MetricCard icon="📈" label="Net Profit" value={`PKR ${netProfit.toLocaleString()}`} color={netProfit >= 0 ? 'var(--green)' : 'var(--red)'} sub={`${analytics.occupancy}% occupied`} />
           </div>
         )}
 
+        {/* Buildings */}
         {buildings.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '64px 24px', border: '2px dashed var(--border)', borderRadius: 'var(--radius-lg)', background: 'var(--paper-card)' }}>
             <div style={{ fontSize: '3rem', marginBottom: 16 }}>🏢</div>
@@ -182,12 +189,13 @@ export default function Dashboard({ user, onSignOut }: { user: User; onSignOut: 
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             {buildings.filter(b => b.id === selectedBuilding).map(b => (
-              <BuildingSection key={b.id} userId={uid} building={b} onDelete={() => handleDeleteBuilding(b.id)} viewMode={view} />
+              <BuildingSection key={b.id} userId={uid} building={b} onDelete={() => handleDeleteBuilding(b.id)} viewMode={settings.showExpenses ? view : 'rent'} settings={settings} />
             ))}
           </div>
         )}
       </main>
 
+      {/* Add Building Modal */}
       {showModal && (
         <Modal title="Add Building" onClose={() => setShowModal(false)}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -203,6 +211,7 @@ export default function Dashboard({ user, onSignOut }: { user: User; onSignOut: 
         </Modal>
       )}
 
+      {/* Add Expense Modal */}
       {showExpenseModal && (
         <Modal title="Add Expense" onClose={() => setShowExpenseModal(false)}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -220,8 +229,19 @@ export default function Dashboard({ user, onSignOut }: { user: User; onSignOut: 
         </Modal>
       )}
 
-      <AIAssistant userId={uid} buildings={buildings} />
-      <style>{`@keyframes slideUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}`}</style>
+      {/* Settings Modal */}
+      {showSettings && (
+        <SettingsModal
+          user={user}
+          settings={settings}
+          onSettingsChange={setSettings}
+          onSignOut={onSignOut}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
+
+      {/* AI Assistant */}
+      {settings.showAIAssistant && <AIAssistant userId={uid} buildings={buildings} />}
     </div>
   );
 }

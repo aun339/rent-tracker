@@ -111,7 +111,7 @@ export default function BuildingSection({ userId, building, onDelete, viewMode }
                 <Btn variant="accent" size="sm" onClick={() => setShowModal(true)}>+ Add First House</Btn>
               </div>
               : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))', gap: 14 }}>
-                {houses.map(house => <HouseCard key={house.id} userId={userId} buildingId={building.id} buildingName={building.name} house={house} onDelete={() => handleDeleteHouse(house.id)} />)}
+                {houses.map(house => <HouseCard key={house.id} userId={userId} buildingId={building.id} buildingName={building.name} house={house} onDelete={() => handleDeleteHouse(house.id)} settings={settings} />)}
               </div>
           )}
         </div>

@@ -38,7 +38,9 @@ function generateReceipt(house: House, amount: string, date: string, month: stri
   return `━━━━━━━━━━━━━━━━━━━━━━━━\n🧾 RENT RECEIPT\n━━━━━━━━━━━━━━━━━━━━━━━━\nUnit:     ${house.houseNumber}\nTenant:   ${house.tenantName || 'N/A'}\nMonth:    ${month}\nAmount:   PKR ${Number(amount).toLocaleString()}\nDate:     ${date}\nStatus:   ✅ PAID\n━━━━━━━━━━━━━━━━━━━━━━━━\nPowered by RentTrack`;
 }
 
-export default function HouseCard({ userId, buildingId, buildingName, house, onDelete }: { userId: string; buildingId: string; buildingName: string; house: House; onDelete: () => void }) {
+import { AppSettings } from "./SettingsModal";
+
+export default function HouseCard({ userId, buildingId, buildingName, house, onDelete, settings }: { userId: string; buildingId: string; buildingName: string; house: House; onDelete: () => void; settings: AppSettings }) {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [showPayModal, setShowPayModal] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -109,7 +111,7 @@ export default function HouseCard({ userId, buildingId, buildingName, house, onD
               {fullyPaid && <span style={{ fontSize: '0.68rem', padding: '2px 8px', borderRadius: 99, background: 'var(--green-soft)', color: 'var(--green)', fontWeight: 700 }}>✓ PAID</span>}
               {noTenant && <span style={{ fontSize: '0.68rem', padding: '2px 8px', borderRadius: 99, background: 'var(--amber-soft)', color: 'var(--amber)', fontWeight: 700 }}>Setup needed</span>}
             </div>
-            <button onClick={() => setShowDetailsModal(true)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}>
+            <button onClick={() => settings.showTenantDetails && setShowDetailsModal(true)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}>
               <p style={{ color: noTenant ? 'var(--ink-muted)' : 'var(--accent)', fontSize: '0.88rem', marginTop: 2, textDecoration: noTenant ? 'none' : 'underline', textDecorationStyle: 'dotted' }}>
                 👤 {house.tenantName || 'No tenant — tap to set up'}
               </p>
@@ -117,7 +119,7 @@ export default function HouseCard({ userId, buildingId, buildingName, house, onD
             {house.phoneNumber && <p style={{ color: 'var(--ink-muted)', fontSize: '0.78rem' }}>📞 {house.phoneNumber}</p>}
           </div>
           <div style={{ display: 'flex', gap: 6, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-            {house.tenantName && house.monthlyRent > 0 && pending > 0 && (
+            {settings.showWhatsApp && house.tenantName && house.monthlyRent > 0 && pending > 0 && (
               <button onClick={openWhatsApp} style={{ background: '#dcfce7', color: '#15803d', border: 'none', borderRadius: 8, padding: '5px 10px', fontSize: '0.78rem', cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="#15803d"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" /><path d="M12 0C5.373 0 0 5.373 0 12c0 2.133.558 4.135 1.535 5.874L.057 23.943l6.235-1.478A11.946 11.946 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.894a9.868 9.868 0 01-5.031-1.378l-.361-.214-3.741.981.998-3.648-.235-.374A9.867 9.867 0 012.106 12C2.106 6.58 6.58 2.106 12 2.106S21.894 6.58 21.894 12 17.42 21.894 12 21.894z" /></svg>
                 Remind
@@ -154,7 +156,7 @@ export default function HouseCard({ userId, buildingId, buildingName, house, onD
           )}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <Btn variant="accent" size="sm" onClick={() => setShowPayModal(true)} icon="💳">Log Payment</Btn>
-            <Btn variant="ghost" size="sm" onClick={() => setShowHistory(true)} icon="📋">Past Records</Btn>
+            {settings.showPastRecords && <Btn variant="ghost" size="sm" onClick={() => setShowHistory(true)} icon="📋">Past Records</Btn>}
           </div>
         </div>
       </div>
@@ -208,7 +210,7 @@ export default function HouseCard({ userId, buildingId, buildingName, house, onD
         </Modal>
       )}
 
-      {showReceiptModal && lastPayment && (
+      {showReceiptModal && lastPayment && settings.showReceipts && (
         <Modal title="Payment Saved ✅" onClose={() => setShowReceiptModal(false)}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div style={{ background: 'var(--paper-warm)', borderRadius: 'var(--radius)', padding: '20px', fontFamily: 'monospace', fontSize: '0.82rem', lineHeight: 1.8, color: 'var(--ink)', whiteSpace: 'pre-wrap' }}>
