@@ -5,6 +5,7 @@ import { collection, onSnapshot, addDoc, deleteDoc, doc, Timestamp, query, order
 import HouseCard from './HouseCard';
 import Modal from './Modal';
 import Btn from './Btn';
+import { AppSettings } from './SettingsModal';
 
 interface House { id: string; houseNumber: string; tenantName: string; phoneNumber: string; monthlyRent: number; }
 interface Expense { id: string; type: string; amount: number; date: any; }
@@ -29,7 +30,15 @@ function AddHouseForm({ form, onChange }: { form: any; onChange: (name: string, 
   );
 }
 
-export default function BuildingSection({ userId, building, onDelete, viewMode }: { userId: string; building: Building; onDelete: () => void; viewMode: 'rent' | 'expenses' }) {
+export default function BuildingSection({
+  userId, building, onDelete, viewMode, settings
+}: {
+  userId: string;
+  building: Building;
+  onDelete: () => void;
+  viewMode: 'rent' | 'expenses';
+  settings: AppSettings;
+}) {
   const [houses, setHouses] = useState<House[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [showModal, setShowModal] = useState(false);
@@ -51,8 +60,11 @@ export default function BuildingSection({ userId, building, onDelete, viewMode }
     if (!form.houseNumber || !form.tenantName || !form.monthlyRent) return;
     setSaving(true);
     try {
-      await addDoc(collection(db, `users/${userId}/buildings/${building.id}/houses`), { ...form, monthlyRent: Number(form.monthlyRent), createdAt: Timestamp.now() });
-      setForm({ houseNumber: '', tenantName: '', phoneNumber: '', monthlyRent: '' }); setShowModal(false);
+      await addDoc(collection(db, `users/${userId}/buildings/${building.id}/houses`), {
+        ...form, monthlyRent: Number(form.monthlyRent), createdAt: Timestamp.now()
+      });
+      setForm({ houseNumber: '', tenantName: '', phoneNumber: '', monthlyRent: '' });
+      setShowModal(false);
     } finally { setSaving(false); }
   };
 
@@ -69,6 +81,7 @@ export default function BuildingSection({ userId, building, onDelete, viewMode }
   return (
     <>
       <div style={{ background: 'var(--paper-card)', borderRadius: 'var(--radius-lg)', border: '1.5px solid var(--border)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
+        {/* Header */}
         <div style={{ padding: '16px 20px', background: 'var(--ink)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
             <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem', flexShrink: 0 }}>🏢</div>
@@ -78,10 +91,18 @@ export default function BuildingSection({ userId, building, onDelete, viewMode }
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-            <button onClick={e => { e.stopPropagation(); setShowModal(true); }} style={{ background: 'rgba(255,255,255,0.15)', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: '0.8rem', fontFamily: 'Syne,sans-serif', fontWeight: 600, cursor: 'pointer' }}>+ House</button>
-            <button onClick={e => { e.stopPropagation(); onDelete(); }} style={{ background: 'rgba(255,80,80,0.2)', color: '#fca5a5', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: '0.8rem', fontFamily: 'Syne,sans-serif', fontWeight: 600, cursor: 'pointer' }}>Delete</button>
+            <button onClick={e => { e.stopPropagation(); setShowModal(true); }}
+              style={{ background: 'rgba(255,255,255,0.15)', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: '0.8rem', fontFamily: 'Syne,sans-serif', fontWeight: 600, cursor: 'pointer' }}>
+              + House
+            </button>
+            <button onClick={e => { e.stopPropagation(); onDelete(); }}
+              style={{ background: 'rgba(255,80,80,0.2)', color: '#fca5a5', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: '0.8rem', fontFamily: 'Syne,sans-serif', fontWeight: 600, cursor: 'pointer' }}>
+              Delete
+            </button>
           </div>
         </div>
+
+        {/* Body */}
         <div style={{ padding: '20px' }}>
           {viewMode === 'expenses' ? (
             expenses.length === 0
@@ -111,18 +132,31 @@ export default function BuildingSection({ userId, building, onDelete, viewMode }
                 <Btn variant="accent" size="sm" onClick={() => setShowModal(true)}>+ Add First House</Btn>
               </div>
               : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))', gap: 14 }}>
-                {houses.map(house => <HouseCard key={house.id} userId={userId} buildingId={building.id} buildingName={building.name} house={house} onDelete={() => handleDeleteHouse(house.id)} settings={settings} />)}
+                {houses.map(house => (
+                  <HouseCard
+                    key={house.id}
+                    userId={userId}
+                    buildingId={building.id}
+                    buildingName={building.name}
+                    house={house}
+                    onDelete={() => handleDeleteHouse(house.id)}
+                    settings={settings}
+                  />
+                ))}
               </div>
           )}
         </div>
       </div>
+
       {showModal && (
         <Modal title={`Add House — ${building.name}`} onClose={() => setShowModal(false)}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <AddHouseForm form={form} onChange={(n, v) => setForm(p => ({ ...p, [n]: v }))} />
             <div style={{ display: 'flex', gap: 10, paddingTop: 4 }}>
               <Btn variant="ghost" onClick={() => setShowModal(false)} fullWidth>Cancel</Btn>
-              <Btn variant="primary" onClick={handleAddHouse} disabled={saving || !form.houseNumber || !form.tenantName || !form.monthlyRent} fullWidth>{saving ? 'Adding…' : 'Add House'}</Btn>
+              <Btn variant="primary" onClick={handleAddHouse} disabled={saving || !form.houseNumber || !form.tenantName || !form.monthlyRent} fullWidth>
+                {saving ? 'Adding…' : 'Add House'}
+              </Btn>
             </div>
           </div>
         </Modal>
